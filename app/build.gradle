@@ -1,0 +1,32 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'com.eagleport.launcher'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.eagleport.launcher'
+        minSdk 26
+        targetSdk 30
+        versionCode 1
+        versionName '0.1.0'
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    signingConfigs {
+        def props = rootProject.file('signing.properties')
+        if (props.exists()) {
+            def p = new Properties()
+            props.withInputStream { p.load(it) }
+            release {
+                storeFile rootProject.file(p.getProperty('storeFile'))
+                storePassword p.getProperty('storePassword')
+                keyAlias p.getProperty('keyAlias')
+                keyPassword p.getProperty('keyPassword')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (signingConfigs.findByName('release') != null) signingConfig signingConfigs.release
+        }
+    }
+}

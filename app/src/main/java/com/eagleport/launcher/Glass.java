@@ -1,0 +1,38 @@
+package com.eagleport.launcher;
+
+import android.graphics.*;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
+
+final class Glass {
+    static int blend(int a,int b,float t) {
+        return Color.rgb((int)(Color.red(a)*(1-t)+Color.red(b)*t),(int)(Color.green(a)*(1-t)+Color.green(b)*t),(int)(Color.blue(a)*(1-t)+Color.blue(b)*t));
+    }
+    static int alpha(int c,int a) { return (c&0xffffff)|(a<<24); }
+    static GradientDrawable panel(int base,int accent,float radius,boolean lite) {
+        GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{alpha(blend(base,accent,.32f),lite?255:220),alpha(blend(base,accent,.12f),lite?255:232)});
+        d.setCornerRadius(radius); d.setStroke(1,alpha(accent,120)); return d;
+    }
+    static final class Wall extends Drawable {
+        final int base,accent; final Bitmap image; final boolean fit; final int tint; final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
+        Wall(int b,int a,Bitmap i,boolean f,int t){base=b;accent=a;image=i;fit=f;tint=t;}
+        @Override public void draw(Canvas c) {
+            Rect r=getBounds(); float w=r.width(),h=r.height(); if(w<=0||h<=0)return;
+            c.save(); c.translate(r.left,r.top); c.clipRect(0,0,w,h);
+            p.setShader(null); p.setColor(base); c.drawRect(0,0,w,h,p);
+            if(image!=null&&!image.isRecycled()) {
+                float s=fit?Math.min(w/image.getWidth(),h/image.getHeight()):Math.max(w/image.getWidth(),h/image.getHeight());
+                float x=(w-image.getWidth()*s)/2,y=(h-image.getHeight()*s)/2;
+                p.setColor(Color.WHITE); c.drawBitmap(image,null,new RectF(x,y,x+image.getWidth()*s,y+image.getHeight()*s),p);
+                if(tint>0){p.setColor(alpha(accent,tint));c.drawRect(0,0,w,h,p);}
+            } else {
+                p.setShader(new LinearGradient(0,0,w,h,base,blend(base,accent,.34f),Shader.TileMode.CLAMP));c.drawRect(0,0,w,h,p);p.setShader(null);
+                Path wave=new Path();wave.moveTo(-w*.2f,h*.66f);wave.cubicTo(w*.1f,h*.08f,w*.5f,h*.64f,w*1.15f,h*.24f);wave.lineTo(w*1.15f,h);wave.lineTo(0,h);wave.close();
+                p.setShader(new LinearGradient(0,h*.3f,w,h,blend(base,accent,.48f),base,Shader.TileMode.CLAMP));c.drawPath(wave,p);p.setShader(null);
+                p.setColor(alpha(accent,90));p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.5f);Path line=new Path();line.moveTo(-w*.2f,h*.66f);line.cubicTo(w*.1f,h*.08f,w*.5f,h*.64f,w*1.15f,h*.24f);c.drawPath(line,p);p.setStyle(Paint.Style.FILL);
+            }
+            c.restore();
+        }
+        @Override public void setAlpha(int a){} @Override public void setColorFilter(ColorFilter f){} @Override public int getOpacity(){return PixelFormat.OPAQUE;}
+    }
+}
