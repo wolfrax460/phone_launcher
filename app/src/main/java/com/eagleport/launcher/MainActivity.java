@@ -30,6 +30,7 @@ public final class MainActivity extends Activity {
     private List<AppCatalog.Entry> entries=new ArrayList<>();
     private LinearLayout root, body, nav, searchResults;
     private TextView clock, date;
+    private ScrollView pageScroll;
     private EditText search;
     private String page="home";
     private int base,accent,homePage=0;
@@ -110,7 +111,7 @@ public final class MainActivity extends Activity {
             case "violet":base=0xff190f32;a=0xffc49aff;break;
             case "sunset":base=0xff301424;a=0xffffab72;break;
             case "midnight":base=0xff101820;a=0xff94b4cf;break;
-            default:base=0xff06172e;a=0xff55d5ff;
+            default:base=0xff041021;a=0xff55d5ff;
         }
         accent=prefs.num("accent",0);if(accent==0)accent=a;
         ActivityManager am=(ActivityManager)getSystemService(ACTIVITY_SERVICE);
@@ -129,7 +130,7 @@ public final class MainActivity extends Activity {
     private LinearLayout card(LinearLayout l){LinearLayout c=vertical();c.setPadding(dp(12),dp(10),dp(12),dp(10));c.setBackground(Glass.panel(base,accent,dp(17),lite));add(l,c,-2);space(l,8);return c;}
     private void action(LinearLayout l,String name,String desc,Runnable r){LinearLayout c=card(l);add(c,title(name,15),-2);if(!desc.isEmpty())add(c,text(desc,12,MUTED),-2);c.setMinimumHeight(dp(48));c.setOnClickListener(v->r.run());c.setFocusable(true);c.setContentDescription(name+". "+desc);}
     private void heading(LinearLayout l,String kicker,String label){add(l,text(kicker,11,accent),-2);add(l,title(label,23),-2);space(l,10);}
-    private LinearLayout scroll(){ScrollView s=new ScrollView(this);s.setFillViewport(false);s.setClipToPadding(false);s.setVerticalScrollBarEnabled(false);body.addView(s,lp(-1,-1));LinearLayout l=vertical();l.setPadding(dp(14),dp(6),dp(14),dp(12));s.addView(l,new ScrollView.LayoutParams(-1,-2));return l;}
+    private LinearLayout scroll(){ScrollView s=new ScrollView(this);pageScroll=s;s.setFillViewport(false);s.setClipToPadding(false);s.setVerticalScrollBarEnabled(false);body.addView(s,lp(-1,-1));LinearLayout l=vertical();l.setPadding(dp(14),dp(6),dp(14),dp(12));s.addView(l,new ScrollView.LayoutParams(-1,-2));return l;}
     private void applyWall(){if(root!=null)root.setBackground(new Glass.Wall(base,accent,prefs.bool("custom_wall",false)?wallImage:null,prefs.bool("wall_fit",false),prefs.bool("wall_tint",false)?35:0));}
     private void applyNav(){
         if(prefs==null)return;
@@ -144,7 +145,8 @@ public final class MainActivity extends Activity {
     private void render(String next){
         if(!alive)return;
         if(search!=null&&search.hasFocus()){((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(search.getWindowToken(),0);search.clearFocus();}
-        page=next;search=null;searchResults=null;clock=null;date=null;
+        final int previousScroll=next.equals(page)&&pageScroll!=null?pageScroll.getScrollY():0;
+        pageScroll=null;page=next;search=null;searchResults=null;clock=null;date=null;
         try{
             colors();getWindow().setStatusBarColor(base);getWindow().setNavigationBarColor(base);
             root=vertical();root.setClipToPadding(false);applyWall();
@@ -161,6 +163,7 @@ public final class MainActivity extends Activity {
                 default:page="home";home();
             }
             bottom();applyNav();
+            if(pageScroll!=null&&previousScroll>0){final ScrollView target=pageScroll;target.post(()->target.scrollTo(0,previousScroll));}
             if(resumed){ui.removeCallbacks(tick);tick.run();}
             prefs.put("startup_pending",false);
         }catch(RuntimeException e){android.util.Log.e("EaglePort","Render failed",e);fallback();}
@@ -317,6 +320,16 @@ public final class MainActivity extends Activity {
         add(l,text(selected.size()+" / "+limit+" shortcuts · tap to add or remove",12,MUTED),-2);
         for(AppCatalog.Entry e:entries){boolean on=selected.contains(e.id);action(l,(on?"✓  ":"＋  ")+e.label,on?"Remove shortcut":"Add shortcut",()->toggleShortcut(key,e.id,limit));}
     }
+    private void toggleSetting(LinearLayout l,String label,String description,String key,boolean fallback,Runnable changed){
+        LinearLayout c=card(l);LinearLayout row=horizontal();LinearLayout words=vertical();
+        add(words,title(label,15),-2);add(words,text(description,12,MUTED),-2);
+        row.addView(words,new LinearLayout.LayoutParams(0,-2,1));
+        Switch sw=new Switch(this);sw.setContentDescription(label);sw.setChecked(prefs.bool(key,fallback));
+        sw.setThumbTintList(new ColorStateList(new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},new int[]{accent,0xffd0dbe5}));
+        row.addView(sw,lp(-2,dp(48)));add(c,row,-2);
+        sw.setOnCheckedChangeListener((v,on)->{prefs.put(key,on);changed.run();});
+        words.setOnClickListener(v->sw.setChecked(!sw.isChecked()));
+    }
     private void settingsPage(){
         LinearLayout l=scroll();heading(l,"MAKE IT YOURS","Launcher Settings");
         section(l,"Appearance");
@@ -328,17 +341,17 @@ public final class MainActivity extends Activity {
         action(l,"Choose a photo","Keeps the image as the background, without artificial waves",()->{
             Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE);try{startActivityForResult(i,WALL_PICK);}catch(ActivityNotFoundException ex){toast("No image picker installed");}
         });
-        action(l,"Image framing",prefs.bool("wall_fit",false)?"Fit: full photo":"Fill: center crop",()->{prefs.put("wall_fit",!prefs.bool("wall_fit",false));render("settings");});
-        action(l,"Wallpaper color tint",prefs.bool("wall_tint",false)?"On · subtle accent overlay":"Off · original colors",()->{prefs.put("wall_tint",!prefs.bool("wall_tint",false));render("settings");});
+        toggleSetting(l,"Fit wallpaper","Show full photo instead of center crop","wall_fit",false,this::applyWall);
+        toggleSetting(l,"Wallpaper color tint","Subtle accent overlay","wall_tint",false,this::applyWall);
         action(l,"Restore theme wallpaper","Uses the selected theme's background",()->{prefs.put("custom_wall",false);render("settings");});
         section(l,"Navigation & apps");
         action(l,"App library layout",prefs.str("layout","grid").equals("grid")?"Grid":"Honeycomb · staggered circular icons",()->{prefs.put("layout",prefs.str("layout","grid").equals("grid")?"honey":"grid");render("settings");});
-        action(l,"Bottom navigation",prefs.bool("gesture",true)?"Single Home line · invisible Back and Recents zones":"Three visible buttons",()->{prefs.put("gesture",!prefs.bool("gesture",true));render("settings");});
+        toggleSetting(l,"Gesture navigation","Single Home line when enabled","gesture",true,()->{root.removeView(nav);bottom();applyNav();});
         action(l,"Home screen apps","Choose your own app shortcuts",()->{editing=false;render("edit");});
         action(l,"Dock apps","Choose up to four shortcuts",()->{editing=true;render("edit");});
         section(l,"Performance & system");
         action(l,"Performance mode",prefs.str("performance","balanced").equals("lite")?"Ultra Lite":"Balanced · lightweight native graphics",()->{prefs.put("performance",prefs.str("performance","balanced").equals("lite")?"balanced":"lite");render("settings");});
-        action(l,"Adaptive memory mode",prefs.bool("adaptive",true)?"On":"Off",()->{prefs.put("adaptive",!prefs.bool("adaptive",true));render("settings");});
+        toggleSetting(l,"Adaptive memory mode","Reduce graphics when memory is low","adaptive",true,this::colors);
         action(l,"Device Center","Live battery, temperature, RAM and storage",()->render("health"));
         action(l,"Default launcher","Select EaglePort or return to Tecno Home",this::chooseHome);
         action(l,"Android keyboard","Use your current Android input method",()->open(new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)));
