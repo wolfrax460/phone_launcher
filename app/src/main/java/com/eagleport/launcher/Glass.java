@@ -10,8 +10,9 @@ final class Glass {
     }
     static int alpha(int c,int a) { return (c&0xffffff)|(a<<24); }
     static GradientDrawable panel(int base,int accent,float radius,boolean lite) {
-        GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{alpha(blend(base,accent,.32f),lite?255:220),alpha(blend(base,accent,.12f),lite?255:232)});
-        d.setCornerRadius(radius); d.setStroke(1,alpha(accent,120)); return d;
+        boolean ocean=base==0xff041021;
+        GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{alpha(ocean?0xff174b70:blend(base,accent,.25f),lite?255:220),alpha(ocean?0xff0a345b:blend(base,accent,.12f),lite?255:219)});
+        d.setCornerRadius(radius); d.setStroke(1,alpha(ocean?0xff82c6ff:accent,153)); return d;
     }
     static final class Wall extends Drawable {
         final int base,accent; final Bitmap image; final boolean fit; final int tint; final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
@@ -26,9 +27,10 @@ final class Glass {
                 p.setColor(Color.WHITE); c.drawBitmap(image,null,new RectF(x,y,x+image.getWidth()*s,y+image.getHeight()*s),p);
                 if(tint>0){p.setColor(alpha(accent,tint));c.drawRect(0,0,w,h,p);}
             } else {
-                p.setShader(new LinearGradient(0,0,w,h,base,blend(base,accent,.34f),Shader.TileMode.CLAMP));c.drawRect(0,0,w,h,p);p.setShader(null);
+                boolean ocean=base==0xff041021;
+                p.setShader(new LinearGradient(0,0,w,h,ocean?new int[]{0xff041021,0xff07274e,0xff0d5ab0}:new int[]{base,blend(base,accent,.18f),blend(base,accent,.38f)},new float[]{0f,.58f,1f},Shader.TileMode.CLAMP));c.drawRect(0,0,w,h,p);p.setShader(null);
                 Path wave=new Path();wave.moveTo(-w*.2f,h*.66f);wave.cubicTo(w*.1f,h*.08f,w*.5f,h*.64f,w*1.15f,h*.24f);wave.lineTo(w*1.15f,h);wave.lineTo(0,h);wave.close();
-                p.setShader(new LinearGradient(0,h*.3f,w,h,blend(base,accent,.48f),base,Shader.TileMode.CLAMP));c.drawPath(wave,p);p.setShader(null);
+                p.setShader(new LinearGradient(0,h*.3f,w,h,alpha(ocean?0xff004b92:blend(base,accent,.48f),130),alpha(base,45),Shader.TileMode.CLAMP));c.drawPath(wave,p);p.setShader(null);
                 p.setColor(alpha(accent,90));p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.5f);Path line=new Path();line.moveTo(-w*.2f,h*.66f);line.cubicTo(w*.1f,h*.08f,w*.5f,h*.64f,w*1.15f,h*.24f);c.drawPath(line,p);p.setStyle(Paint.Style.FILL);
             }
             c.restore();
