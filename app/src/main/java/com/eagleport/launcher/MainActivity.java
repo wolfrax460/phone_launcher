@@ -136,7 +136,7 @@ public final class MainActivity extends Activity {
         // Only the launcher window uses immersive navigation. Android's bars remain
         // available by edge swipe and are unaffected inside other applications.
         int flags=0;
-        if(prefs.bool("gesture",true)&&!page.equals("library")&&!page.equals("edit")&&!page.equals("recovery")){
+        if(prefs.bool("gesture",true)&&!page.equals("recovery")){
             flags=View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
         }
         getWindow().getDecorView().setSystemUiVisibility(flags);
@@ -274,10 +274,10 @@ public final class MainActivity extends Activity {
         while(pos<apps.size()){
             int columns=honey?(rowIndex%2==0?4:3):4;int take=Math.min(columns,apps.size()-pos);
             LinearLayout row=horizontal();row.setGravity(Gravity.CENTER);
-            if(honey&&columns==3)spaceHorizontal(row,10);
+            if(honey&&columns==3)row.addView(new View(this),new LinearLayout.LayoutParams(0,1,.5f));
             for(int i=0;i<take;i++)row.addView(appIcon(apps.get(pos++),honey,false),new LinearLayout.LayoutParams(0,dp(honey?76:70),1));
             for(int i=take;i<columns;i++)row.addView(new View(this),new LinearLayout.LayoutParams(0,dp(1),1));
-            if(honey&&columns==3)spaceHorizontal(row,10);
+            if(honey&&columns==3)row.addView(new View(this),new LinearLayout.LayoutParams(0,1,.5f));
             add(parent,row,-2);rowIndex++;
         }
     }
