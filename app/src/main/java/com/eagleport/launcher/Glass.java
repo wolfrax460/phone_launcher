@@ -15,8 +15,8 @@ final class Glass {
         d.setCornerRadius(radius); d.setStroke(1,alpha(ocean?0xff82c6ff:accent,153)); return d;
     }
     static final class Wall extends Drawable {
-        final int base,accent; final Bitmap image; final boolean fit; final int tint; final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
-        Wall(int b,int a,Bitmap i,boolean f,int t){base=b;accent=a;image=i;fit=f;tint=t;}
+        final int base,accent; final Bitmap image; final boolean fit; final int tint,opacity; final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
+        Wall(int b,int a,Bitmap i,boolean f,int t,int o){base=b;accent=a;image=i;fit=f;tint=t;opacity=Math.max(0,Math.min(100,o));}
         @Override public void draw(Canvas c) {
             Rect r=getBounds(); float w=r.width(),h=r.height(); if(w<=0||h<=0)return;
             c.save(); c.translate(r.left,r.top); c.clipRect(0,0,w,h);
@@ -24,7 +24,7 @@ final class Glass {
             if(image!=null&&!image.isRecycled()) {
                 float s=fit?Math.min(w/image.getWidth(),h/image.getHeight()):Math.max(w/image.getWidth(),h/image.getHeight());
                 float x=(w-image.getWidth()*s)/2,y=(h-image.getHeight()*s)/2;
-                p.setColor(Color.WHITE); c.drawBitmap(image,null,new RectF(x,y,x+image.getWidth()*s,y+image.getHeight()*s),p);
+                p.setColor(Color.WHITE);p.setAlpha(Math.round(opacity*2.55f)); c.drawBitmap(image,null,new RectF(x,y,x+image.getWidth()*s,y+image.getHeight()*s),p);p.setAlpha(255);
                 if(tint>0){p.setColor(alpha(accent,tint));c.drawRect(0,0,w,h,p);}
             } else {
                 boolean ocean=base==0xff041021;
