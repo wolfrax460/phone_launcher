@@ -38,6 +38,7 @@ public final class MainActivity extends Activity {
     private float startX,startY; private String startPage; private int navZone=-1;
     private long downAt;
     private boolean handledSwipe=false;
+    private boolean sliderTouch=false;
     private final Runnable tick=new Runnable(){public void run(){
         if(!resumed)return;
         if(clock!=null)clock.setText(DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date()));
@@ -115,7 +116,7 @@ public final class MainActivity extends Activity {
         }
         accent=prefs.num("accent",0);if(accent==0)accent=a;
         ActivityManager am=(ActivityManager)getSystemService(ACTIVITY_SERVICE);
-        lite=prefs.str("performance","balanced").equals("lite");
+        lite=prefs.str("performance","balanced").equals("lite")||!prefs.bool("glass_effects",true);
         if(prefs.bool("adaptive",true)&&am!=null){ActivityManager.MemoryInfo mi=new ActivityManager.MemoryInfo();am.getMemoryInfo(mi);lite=lite||mi.lowMemory||am.isLowRamDevice();}
     }
     private LinearLayout vertical(){LinearLayout v=new LinearLayout(this);v.setOrientation(LinearLayout.VERTICAL);return v;}
@@ -220,10 +221,11 @@ public final class MainActivity extends Activity {
                 if(startY>=xy[1]&&startY<=xy[1]+nav.getHeight())navZone=Math.max(0,Math.min(2,(int)((startX-xy[0])*3/Math.max(1,nav.getWidth()))));
             }
         }
-        if(action==MotionEvent.ACTION_UP&&!handledSwipe&&Objects.equals(startPage,page)){
+        if(action==MotionEvent.ACTION_UP&&!handledSwipe&&!sliderTouch&&Objects.equals(startPage,page)){
             float dx=event.getRawX()-startX,dy=event.getRawY()-startY;float threshold=dp(44);
             Runnable go=null;
             if(navZone>=0&&dy<-dp(26)&&Math.abs(dy)>Math.abs(dx)){final int z=navZone;go=()->navAction(z);}
+            else if(dy<-threshold&&Math.abs(dy)>Math.abs(dx)&&startX>getResources().getDisplayMetrics().widthPixels*.67f&&startY>getResources().getDisplayMetrics().heightPixels*.80f&&prefs.bool("gesture",true)){go=()->render("recents");}
             else if(page.equals("home")&&SystemClock.uptimeMillis()-downAt<1100){
                 if(Math.abs(dx)>Math.abs(dy)&&dx<-threshold)go=()->render("settings");
                 else if(Math.abs(dx)>Math.abs(dy)&&dx>threshold)go=()->render("control");
@@ -246,15 +248,17 @@ public final class MainActivity extends Activity {
     }
     private void home(){
         LinearLayout content=vertical();content.setPadding(dp(13),dp(4),dp(13),dp(5));body.addView(content,lp(-1,-1));
-        LinearLayout brand=horizontal();ImageView mark=new ImageView(this);mark.setImageResource(com.eagleport.launcher.R.drawable.eagle);brand.addView(mark,lp(dp(36),dp(36)));
-        LinearLayout names=vertical();names.setPadding(dp(7),0,0,0);add(names,title("EaglePort OS",17),-2);add(names,text("Launcher",11,MUTED),-2);brand.addView(names,new LinearLayout.LayoutParams(0,-2,1));
-        brand.addView(button("◉",()->render("control")),lp(dp(48),dp(48)));spaceHorizontal(brand,6);brand.addView(button("⚙",()->render("settings")),lp(dp(48),dp(48)));add(content,brand,-2);space(content,7);
+        LinearLayout brand=horizontal();ImageView mark=new ImageView(this);mark.setImageResource(com.eagleport.launcher.R.drawable.eagle);mark.setContentDescription("EaglePort logo");mark.setVisibility(prefs.bool("show_logo",true)?View.VISIBLE:View.INVISIBLE);brand.addView(mark,lp(dp(52),dp(52)));
+        brand.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
+        brand.addView(button("◉",()->render("control")),lp(dp(48),dp(48)));spaceHorizontal(brand,6);brand.addView(button("⚙",()->open(new Intent(Settings.ACTION_SETTINGS))),lp(dp(48),dp(48)));add(content,brand,-2);space(content,7);
         // A non-clickable hint: the app library opens by swipe, never by drawer icon.
         TextView hint=text("⌕  Swipe up to search apps",12,MUTED);hint.setPadding(dp(12),0,dp(12),0);hint.setBackground(Glass.panel(base,accent,dp(16),lite));add(content,hint,dp(36));space(content,8);
+        if(prefs.bool("home_widgets",true)){
         LinearLayout time=card(content);clock=text(DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date()),39,WHITE);add(time,clock,-2);date=text(DateFormat.getDateInstance(DateFormat.FULL).format(new Date()),12,MUTED);add(time,date,-2);
         Intent battery=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));int level=battery==null?-1:battery.getIntExtra(BatteryManager.EXTRA_LEVEL,-1);
         int scale=battery==null?-1:battery.getIntExtra(BatteryManager.EXTRA_SCALE,-1);int percent=scale>0&&level>=0?level*100/scale:-1;
-        LinearLayout widget=card(content);add(widget,title(percent>=0?"Battery  "+percent+"%":"Battery",17),-2);add(widget,text("Offline device widget · live weather not enabled",11,MUTED),-2);widget.setOnClickListener(v->render("health"));
+        LinearLayout widget=card(content);add(widget,title(percent>=0?"Battery  "+percent+"%":"Battery",17),-2);add(widget,text("Offline device widget · live weather not enabled",11,MUTED),-2);widget.setOnClickListener(v->render("health"));}
+        else {clock=null;date=null;}
         ScrollView gridScroll=new ScrollView(this);gridScroll.setVerticalScrollBarEnabled(false);content.addView(gridScroll,new LinearLayout.LayoutParams(-1,0,1));LinearLayout list=vertical();gridScroll.addView(list,new ScrollView.LayoutParams(-1,-2));
         List<AppCatalog.Entry> selected=new ArrayList<>();for(String id:prefs.list("home_apps")){AppCatalog.Entry e=entry(id);if(e!=null)selected.add(e);}
         if(selected.isEmpty())add(list,text(loaded?"No shortcuts. Hold an empty area or open Settings to add apps.":"Loading installed apps…",13,MUTED),dp(54));
@@ -263,7 +267,7 @@ public final class MainActivity extends Activity {
         list.setOnLongClickListener(v->{editing=false;render("edit");return true;});
         if(count>1){LinearLayout pages=horizontal();pages.setGravity(Gravity.CENTER);for(int i=0;i<count;i++){final int p=i;TextView dot=text(i==homePage?"●":"○",18,WHITE);dot.setGravity(Gravity.CENTER);pages.addView(dot,lp(dp(42),dp(30)));dot.setOnClickListener(v->{homePage=p;render("home");});}add(content,pages,-2);}
         LinearLayout dock=horizontal();dock.setPadding(dp(5),dp(6),dp(5),dp(6));dock.setBackground(Glass.panel(base,accent,dp(18),lite));
-        for(String id:prefs.list("dock_apps")){AppCatalog.Entry e=entry(id);if(e!=null)dock.addView(appIcon(e,false,true),new LinearLayout.LayoutParams(0,dp(49),1));}
+        for(String id:prefs.list("dock_apps")){AppCatalog.Entry e=entry(id);if(e!=null)dock.addView(appIcon(e,false,true),new LinearLayout.LayoutParams(0,dp(Math.max(56,64*Math.max(70,Math.min(125,prefs.num("icon_scale",100)))/100f)),1));}
         if(dock.getChildCount()==0){TextView empty=text("Hold here to customize dock",12,MUTED);empty.setGravity(Gravity.CENTER);dock.addView(empty,lp(-1,dp(40)));}
         dock.setOnLongClickListener(v->{editing=true;render("edit");return true;});add(content,dock,-2);
     }
@@ -271,7 +275,8 @@ public final class MainActivity extends Activity {
     private View appIcon(AppCatalog.Entry e,boolean honey,boolean compact){
         LinearLayout cell=vertical();cell.setGravity(Gravity.CENTER);cell.setPadding(dp(2),dp(3),dp(2),dp(3));cell.setContentDescription(e.label);
         ImageView image=new ImageView(this);image.setImageBitmap(catalog.icon(e));image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        int iconSize=compact?dp(39):dp(honey?50:45);
+        int iconSize=dp((compact?39:honey?50:58)*Math.max(70,Math.min(125,prefs.num("icon_scale",100)))/100f);
+        if(!honey){image.setBackground(Glass.panel(base,accent,dp(17),lite));image.setPadding(dp(5),dp(5),dp(5),dp(5));}
         if(honey){
             GradientDrawable round=new GradientDrawable();round.setShape(GradientDrawable.OVAL);round.setColor(Glass.alpha(accent,35));round.setStroke(1,Glass.alpha(accent,100));image.setBackground(round);image.setClipToOutline(true);image.setPadding(dp(3),dp(3),dp(3),dp(3));
         }
@@ -283,10 +288,10 @@ public final class MainActivity extends Activity {
     private void grid(LinearLayout parent,List<AppCatalog.Entry> apps,boolean honey,boolean isHome){
         int pos=0,rowIndex=0;
         while(pos<apps.size()){
-            int columns=honey?(rowIndex%2==0?4:3):4;int take=Math.min(columns,apps.size()-pos);
+            int columns=honey?(rowIndex%2==0?4:3):prefs.bool("adaptive_grid",true)&&apps.size()<=6?Math.min(3,apps.size()):4;int take=Math.min(columns,apps.size()-pos);
             LinearLayout row=horizontal();row.setGravity(Gravity.CENTER);
             if(honey&&columns==3)row.addView(new View(this),new LinearLayout.LayoutParams(0,1,.5f));
-            for(int i=0;i<take;i++)row.addView(appIcon(apps.get(pos++),honey,false),new LinearLayout.LayoutParams(0,dp(honey?76:70),1));
+            for(int i=0;i<take;i++)row.addView(appIcon(apps.get(pos++),honey,false),new LinearLayout.LayoutParams(0,dp(Math.max(76,(honey?90:95)*Math.max(70,Math.min(125,prefs.num("icon_scale",100)))/100f)),1));
             for(int i=take;i<columns;i++)row.addView(new View(this),new LinearLayout.LayoutParams(0,dp(1),1));
             if(honey&&columns==3)row.addView(new View(this),new LinearLayout.LayoutParams(0,1,.5f));
             add(parent,row,-2);rowIndex++;
@@ -343,11 +348,12 @@ public final class MainActivity extends Activity {
         words.setOnClickListener(v->sw.setChecked(!sw.isChecked()));
     }
     private void welcome(){
-        LinearLayout l=scroll();heading(l,"WELCOME TO EAGLEPORT","Make your phone yours");
+        LinearLayout l=scroll();ImageView logo=new ImageView(this);logo.setImageResource(com.eagleport.launcher.R.drawable.eagle);add(l,logo,dp(112));heading(l,"WELCOME TO EAGLEPORT","Make your phone yours");add(l,text("A warm welcome from Ntirenganya Janvier and Mugisha Is\'haq.",18,WHITE),-2);space(l,12);
         action(l,"↑  Swipe up","Open the app library and search installed apps",()->render("library"));
         action(l,"↓  Swipe down","Open EaglePort Control Center from Home",()->render("control"));
         action(l,"←  Swipe left","Open launcher settings",()->render("settings"));
-        action(l,"→  Swipe right","View device status",()->render("health"));
+        action(l,"→  Swipe right","Open Control Center",()->render("control"));
+        action(l,"↗  Bottom-right swipe","Open recent applications",()->render("recents"));
         action(l,"Optional screen lock","Set a PIN or password using Android security",()->open(new Intent(Settings.ACTION_SECURITY_SETTINGS)));
         action(l,"Choose default launcher","Select EaglePort as your Home app",this::chooseHome);
         add(l,button("Get started",()->{prefs.put("onboarding_done",true);render("home");}),-2);
@@ -355,6 +361,9 @@ public final class MainActivity extends Activity {
     private void settingsPage(){
         LinearLayout l=scroll();heading(l,"MAKE IT YOURS","Launcher Settings");
         section(l,"Appearance");
+        toggleSetting(l,"Show EaglePort logo","Show only the logo on Home","show_logo",true,()->{});
+        toggleSetting(l,"Adaptive app layout","Use fewer columns when there are few apps","adaptive_grid",true,()->{});
+        LinearLayout iconCard=card(l);TextView iconLabel=title("App icon size: "+prefs.num("icon_scale",100)+"%",15);add(iconCard,iconLabel,-2);SeekBar iconScale=new SeekBar(this);iconScale.setMax(55);iconScale.setProgress(Math.max(0,Math.min(55,prefs.num("icon_scale",100)-70)));add(iconCard,iconScale,-2);iconScale.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar b,int v,boolean user){if(user){prefs.put("icon_scale",70+v);iconLabel.setText("App icon size: "+(70+v)+"%");}}public void onStartTrackingTouch(SeekBar b){sliderTouch=true;}public void onStopTrackingTouch(SeekBar b){sliderTouch=false;}});
         String[] themes={"ocean","emerald","violet","midnight","sunset"};
         String[] labels={"Ocean Glass","Emerald Glass","Aurora Violet","Midnight Lite","Sunset Glow"};
         for(int i=0;i<themes.length;i++){final String t=themes[i];action(l,labels[i],prefs.str("theme","ocean").equals(t)?"Selected":"Tap to apply",()->{prefs.put("theme",t);prefs.put("accent",0);render("settings");});}
@@ -380,16 +389,18 @@ public final class MainActivity extends Activity {
         action(l,"Dock apps","Choose up to four shortcuts",()->{editing=true;render("edit");});
         section(l,"Performance & system");
         toggleSetting(l,"Screen animations","Lightweight transitions","animations",true,()->{});
+        toggleSetting(l,"Home widgets","Show clock and battery cards","home_widgets",true,()->{});
+        toggleSetting(l,"Glass effects","Disable transparent glass for weaker phones","glass_effects",true,()->{});
         action(l,"Device security","Manage Android screen lock",()->open(new Intent(Settings.ACTION_SECURITY_SETTINGS)));
         action(l,"Launcher guide","Review gestures and setup",()->render("welcome"));
-        action(l,"Performance mode",prefs.str("performance","balanced").equals("lite")?"Ultra Lite":"Balanced · lightweight native graphics",()->{prefs.put("performance",prefs.str("performance","balanced").equals("lite")?"balanced":"lite");render("settings");});
+        action(l,"Performance profile",prefs.str("performance","balanced"),()->new AlertDialog.Builder(this).setTitle("Performance profile").setItems(new String[]{"Lite","Balanced","Rich"},(d,w)->{String[] profiles={"lite","balanced","rich"};prefs.put("performance",profiles[w]);prefs.put("glass_effects",w!=0);prefs.put("animations",w!=0);prefs.put("home_widgets",w!=0);prefs.put("adaptive",w!=2);render("settings");}).show());
         toggleSetting(l,"Adaptive memory mode","Reduce graphics when memory is low","adaptive",true,this::colors);
         action(l,"Device Center","Live battery, temperature, RAM and storage",()->render("health"));
-        action(l,"Default launcher","Select EaglePort or return to Tecno Home",this::chooseHome);
+        action(l,"Default launcher","Select EaglePort or your existing Android launcher",this::chooseHome);
         action(l,"Android keyboard","Use your current Android input method",()->open(new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)));
         action(l,"Check for launcher updates","Open official repository releases · settings are retained on signed in-place updates",()->open(new Intent(Intent.ACTION_VIEW,Uri.parse(RELEASES))));
         action(l,"Recovery","Safe appearance reset and Android fallback",()->render("recovery"));
-        add(l,text("EaglePort Os v1.1. By Ntirenganya Janvier Coder",11,MUTED),-2);
+        TextView credit=text("EaglePort OS v1.1 · By Ntirenganya Janvier Coder",12,MUTED);credit.setGravity(Gravity.CENTER);add(l,credit,-2);
     }
     private void accentPicker(){
         EditText input=new EditText(this);input.setSingleLine(true);input.setHint("#55D5FF");input.setText(String.format(Locale.US,"#%06X",accent&0xffffff));
@@ -443,6 +454,7 @@ public final class MainActivity extends Activity {
         AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
         if(audio!=null){LinearLayout vol=card(l);add(vol,title("Media volume",14),-2);SeekBar slider=new SeekBar(this);slider.setMax(audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));slider.setProgress(audio.getStreamVolume(AudioManager.STREAM_MUSIC));add(vol,slider,-2);slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean user){if(user)try{audio.setStreamVolume(AudioManager.STREAM_MUSIC,p,0);}catch(SecurityException ex){toast("Volume change not permitted");}}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}});}
         action(l,"System notifications","Android controls the real notification shade",()->open(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName())));
+        add(l,button("⌃",this::onBackPressed),dp(55));
     }
     private void recents(){
         LinearLayout l=scroll();heading(l,"RECENT LAUNCHES","Recent Apps");
