@@ -160,6 +160,7 @@ public final class MainActivity extends Activity {
                 case "settings": settingsPage();break;
                 case "health": health();break;
                 case "control": control();break;
+                case "notifications": notifications();break;
                 case "recents": recents();break;
                 case "edit": editHome();break;
                 case "recovery": recovery();break;
@@ -250,14 +251,14 @@ public final class MainActivity extends Activity {
         LinearLayout content=vertical();content.setPadding(dp(13),dp(4),dp(13),dp(5));body.addView(content,lp(-1,-1));
         LinearLayout brand=horizontal();ImageView mark=new ImageView(this);mark.setImageResource(com.eagleport.launcher.R.drawable.eagle);mark.setContentDescription("EaglePort logo");mark.setVisibility(prefs.bool("show_logo",true)?View.VISIBLE:View.INVISIBLE);brand.addView(mark,lp(dp(52),dp(52)));
         brand.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
-        brand.addView(button("◉",()->render("control")),lp(dp(48),dp(48)));spaceHorizontal(brand,6);brand.addView(button("⚙",()->open(new Intent(Settings.ACTION_SETTINGS))),lp(dp(48),dp(48)));add(content,brand,-2);space(content,7);
+        brand.addView(button("⚙",()->open(new Intent(Settings.ACTION_SETTINGS))),lp(dp(48),dp(48)));add(content,brand,-2);space(content,7);
         // A non-clickable hint: the app library opens by swipe, never by drawer icon.
         TextView hint=text("⌕  Swipe up to search apps",12,MUTED);hint.setPadding(dp(12),0,dp(12),0);hint.setBackground(Glass.panel(base,accent,dp(16),lite));add(content,hint,dp(36));space(content,8);
         if(prefs.bool("home_widgets",true)){
         LinearLayout time=card(content);clock=text(DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date()),39,WHITE);add(time,clock,-2);date=text(DateFormat.getDateInstance(DateFormat.FULL).format(new Date()),12,MUTED);add(time,date,-2);
         Intent battery=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));int level=battery==null?-1:battery.getIntExtra(BatteryManager.EXTRA_LEVEL,-1);
         int scale=battery==null?-1:battery.getIntExtra(BatteryManager.EXTRA_SCALE,-1);int percent=scale>0&&level>=0?level*100/scale:-1;
-        LinearLayout widget=card(content);add(widget,title(percent>=0?"Battery  "+percent+"%":"Battery",17),-2);add(widget,text("Offline device widget · live weather not enabled",11,MUTED),-2);widget.setOnClickListener(v->render("health"));}
+        LinearLayout widget=card(content);LinearLayout battRow=horizontal();battRow.addView(new BatteryRing(percent),lp(dp(80),dp(80)));LinearLayout battText=vertical();battText.setPadding(dp(12),0,0,0);add(battText,title("Battery",17),-2);add(battText,text("Tap for device status",12,MUTED),-2);battRow.addView(battText,new LinearLayout.LayoutParams(0,-2,1));add(widget,battRow,-2);widget.setOnClickListener(v->render("health"));}
         else {clock=null;date=null;}
         ScrollView gridScroll=new ScrollView(this);gridScroll.setVerticalScrollBarEnabled(false);content.addView(gridScroll,new LinearLayout.LayoutParams(-1,0,1));LinearLayout list=vertical();gridScroll.addView(list,new ScrollView.LayoutParams(-1,-2));
         List<AppCatalog.Entry> selected=new ArrayList<>();for(String id:prefs.list("home_apps")){AppCatalog.Entry e=entry(id);if(e!=null)selected.add(e);}
@@ -275,7 +276,7 @@ public final class MainActivity extends Activity {
     private View appIcon(AppCatalog.Entry e,boolean honey,boolean compact){
         LinearLayout cell=vertical();cell.setGravity(Gravity.CENTER);cell.setPadding(dp(2),dp(3),dp(2),dp(3));cell.setContentDescription(e.label);
         ImageView image=new ImageView(this);image.setImageBitmap(catalog.icon(e));image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        int iconSize=dp((compact?39:honey?50:58)*Math.max(70,Math.min(125,prefs.num("icon_scale",100)))/100f);
+        int iconSize=dp((compact?39:honey?50:58)*Math.max(70,Math.min(125,prefs.num("icon_scale",100)))/100f);iconSize=Math.min(iconSize,Math.max(dp(24),(getResources().getDisplayMetrics().widthPixels-dp(40))/4));
         if(!honey){image.setBackground(Glass.panel(base,accent,dp(17),lite));image.setPadding(dp(5),dp(5),dp(5),dp(5));}
         if(honey){
             GradientDrawable round=new GradientDrawable();round.setShape(GradientDrawable.OVAL);round.setColor(Glass.alpha(accent,35));round.setStroke(1,Glass.alpha(accent,100));image.setBackground(round);image.setClipToOutline(true);image.setPadding(dp(3),dp(3),dp(3),dp(3));
@@ -288,7 +289,7 @@ public final class MainActivity extends Activity {
     private void grid(LinearLayout parent,List<AppCatalog.Entry> apps,boolean honey,boolean isHome){
         int pos=0,rowIndex=0;
         while(pos<apps.size()){
-            int columns=honey?(rowIndex%2==0?4:3):prefs.bool("adaptive_grid",true)&&apps.size()<=6?Math.min(3,apps.size()):4;int take=Math.min(columns,apps.size()-pos);
+            int columns=honey?(rowIndex%2==0?4:3):prefs.bool("adaptive_grid",true)&&apps.size()<=6?Math.min(3,apps.size()):getResources().getConfiguration().screenWidthDp>=360&&prefs.num("icon_scale",100)>110?3:4;int take=Math.min(columns,apps.size()-pos);
             LinearLayout row=horizontal();row.setGravity(Gravity.CENTER);
             if(honey&&columns==3)row.addView(new View(this),new LinearLayout.LayoutParams(0,1,.5f));
             for(int i=0;i<take;i++)row.addView(appIcon(apps.get(pos++),honey,false),new LinearLayout.LayoutParams(0,dp(Math.max(76,(honey?90:95)*Math.max(70,Math.min(125,prefs.num("icon_scale",100)))/100f)),1));
@@ -378,8 +379,8 @@ public final class MainActivity extends Activity {
         SeekBar opacity=new SeekBar(this);opacity.setMax(100);opacity.setProgress(prefs.num("wall_opacity",100));add(opacityCard,opacity,-2);
         opacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
             public void onProgressChanged(SeekBar bar,int value,boolean user){if(user){prefs.put("wall_opacity",value);opacityLabel.setText("Wallpaper opacity: "+value+"%");applyWall();}}
-            public void onStartTrackingTouch(SeekBar bar){}
-            public void onStopTrackingTouch(SeekBar bar){}
+            public void onStartTrackingTouch(SeekBar bar){sliderTouch=true;}
+            public void onStopTrackingTouch(SeekBar bar){sliderTouch=false;}
         });
         action(l,"Restore theme wallpaper","Uses the selected theme's background",()->{prefs.put("custom_wall",false);render("settings");});
         section(l,"Navigation & apps");
@@ -431,7 +432,7 @@ public final class MainActivity extends Activity {
         Intent b=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         if(b!=null){
             int level=b.getIntExtra(BatteryManager.EXTRA_LEVEL,-1),scale=b.getIntExtra(BatteryManager.EXTRA_SCALE,-1),temp=b.getIntExtra(BatteryManager.EXTRA_TEMPERATURE,Integer.MIN_VALUE);
-            LinearLayout c=card(l);add(c,title(scale>0&&level>=0?(100*level/scale)+"% battery":"Battery unavailable",28),-2);add(c,text(temp!=Integer.MIN_VALUE?String.format(Locale.US,"Battery temperature %.1f°C",temp/10f):"Battery temperature unavailable",14,MUTED),-2);add(c,text("Remaining time: Android estimate unavailable",12,MUTED),-2);
+            LinearLayout c=card(l);LinearLayout row=horizontal();row.addView(new BatteryRing(scale>0&&level>=0?100*level/scale:-1),lp(dp(120),dp(120)));LinearLayout stats=vertical();stats.setPadding(dp(12),0,0,0);add(stats,title("Battery status",17),-2);add(stats,text(temp!=Integer.MIN_VALUE?String.format(Locale.US,"Temperature %.1f°C",temp/10f):"Temperature unavailable",14,MUTED),-2);add(stats,text("Remaining time unavailable",12,MUTED),-2);row.addView(stats,new LinearLayout.LayoutParams(0,-2,1));add(c,row,-2);
         }
         ActivityManager am=(ActivityManager)getSystemService(ACTIVITY_SERVICE);
         if(am!=null){ActivityManager.MemoryInfo m=new ActivityManager.MemoryInfo();am.getMemoryInfo(m);metric(l,"Available RAM",String.format(Locale.US,"%d / %d MB",m.availMem/1048576,m.totalMem/1048576),m.lowMemory?"Android reports low memory":"System-wide memory; not launcher PSS");}
@@ -453,15 +454,51 @@ public final class MainActivity extends Activity {
         LinearLayout c=card(l);add(c,title("Launcher brightness",14),-2);SeekBar brightness=new SeekBar(this);brightness.setMax(100);float current=getWindow().getAttributes().screenBrightness;brightness.setProgress(current<0?60:(int)(current*100));add(c,brightness,-2);brightness.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean user){if(user){WindowManager.LayoutParams a=getWindow().getAttributes();a.screenBrightness=Math.max(.08f,p/100f);getWindow().setAttributes(a);}}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}});
         AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
         if(audio!=null){LinearLayout vol=card(l);add(vol,title("Media volume",14),-2);SeekBar slider=new SeekBar(this);slider.setMax(audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));slider.setProgress(audio.getStreamVolume(AudioManager.STREAM_MUSIC));add(vol,slider,-2);slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean user){if(user)try{audio.setStreamVolume(AudioManager.STREAM_MUSIC,p,0);}catch(SecurityException ex){toast("Volume change not permitted");}}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}});}
-        action(l,"System notifications","Android controls the real notification shade",()->open(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName())));
+        action(l,"Notifications","View notification center",()->render("notifications"));
         add(l,button("⌃",this::onBackPressed),dp(55));
     }
     private void recents(){
-        LinearLayout l=scroll();heading(l,"RECENT LAUNCHES","Recent Apps");
+        LinearLayout l=scroll();heading(l,"MULTITASKING","Recent Apps");
         add(l,text("EaglePort history only. Android controls actual tasks and process closing.",12,MUTED),-2);space(l,8);
-        for(String id:prefs.list("history")){AppCatalog.Entry e=entry(id);if(e==null)continue;LinearLayout c=card(l);LinearLayout r=horizontal();r.addView(appIcon(e,false,true),lp(dp(56),dp(50)));r.addView(title(e.label,16),new LinearLayout.LayoutParams(0,-2,1));r.addView(button("Remove",()->{List<String> h=prefs.list("history");h.remove(id);prefs.list("history",h);render("recents");}),lp(dp(85),dp(44)));add(c,r,-2);}
+        for(String id:prefs.list("history")){AppCatalog.Entry e=entry(id);if(e==null)continue;LinearLayout c=card(l);LinearLayout r=horizontal();r.addView(appIcon(e,false,true),lp(dp(56),dp(50)));r.addView(title(e.label,16),new LinearLayout.LayoutParams(0,-2,1));r.addView(button("×",()->{List<String> h=prefs.list("history");h.remove(id);prefs.list("history",h);render("recents");}),lp(dp(85),dp(44)));add(c,r,-2);TextView preview=button("Open "+e.label,()->launch(e));preview.setMinHeight(dp(90));add(c,preview,-2);}
         action(l,"Clear launcher history","Does not force-stop applications",()->{prefs.list("history",new ArrayList<>());render("recents");});
         action(l,"Android navigation settings","Use system Recents for real tasks",()->open(new Intent(Settings.ACTION_SETTINGS)));
+    }
+    private final class BatteryRing extends View {
+        final int percent;final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+        BatteryRing(int p){super(MainActivity.this);percent=p;setContentDescription(p<0?"Battery unavailable":"Battery "+p+" percent");}
+        @Override protected void onDraw(Canvas c){super.onDraw(c);float cx=getWidth()/2f,cy=getHeight()/2f,r=Math.min(cx,cy)-dp(8);if(r<=0)return;
+            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(7));paint.setStrokeCap(Paint.Cap.ROUND);paint.setColor(Glass.alpha(WHITE,45));c.drawCircle(cx,cy,r,paint);
+            if(percent>=0){paint.setColor(0xff39e8bd);c.drawArc(cx-r,cy-r,cx+r,cy+r,-90,Math.min(100,percent)*3.6f,false,paint);}
+            paint.setStyle(Paint.Style.FILL);paint.setColor(WHITE);paint.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(dp(getWidth()>dp(95)?26:17));c.drawText(percent<0?"—":percent+"%",cx,cy-(paint.ascent()+paint.descent())/2,paint);
+        }
+    }
+    public static final class NoticeListener extends android.service.notification.NotificationListenerService {
+        static volatile NoticeListener connected;
+        @Override public void onListenerConnected(){connected=this;}
+        @Override public void onListenerDisconnected(){if(connected==this)connected=null;}
+        @Override public void onDestroy(){if(connected==this)connected=null;super.onDestroy();}
+    }
+    private void notifications(){
+        LinearLayout l=scroll();heading(l,"TODAY","Notifications");
+        NoticeListener listener=NoticeListener.connected;
+        if(listener==null){
+            add(l,text("Notification access is optional. Android controls the permission; EaglePort displays active notifications locally and does not upload or store their content.",14,MUTED),-2);
+            action(l,"Enable notification access","Open Android notification access settings",()->open(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
+        }else{
+            try{
+                android.service.notification.StatusBarNotification[] active=listener.getActiveNotifications();
+                if(active==null||active.length==0)add(l,text("You are all caught up.",15,MUTED),-2);
+                else for(android.service.notification.StatusBarNotification n:active){
+                    Notification notice=n.getNotification();if(notice==null)continue;
+                    CharSequence headline=notice.extras.getCharSequence(Notification.EXTRA_TITLE);CharSequence message=notice.extras.getCharSequence(Notification.EXTRA_TEXT);
+                    String app=n.getPackageName();try{app=getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(app,0)).toString();}catch(PackageManager.NameNotFoundException ignored){}
+                    LinearLayout item=card(l);add(item,text(app,12,accent),-2);add(item,title(headline==null?"Notification":headline.toString(),16),-2);if(message!=null)add(item,text(message.toString(),14,MUTED),-2);
+                    if(notice.contentIntent!=null)item.setOnClickListener(v->{try{notice.contentIntent.send();}catch(PendingIntent.CanceledException e){toast("Notification is no longer available");}});
+                }
+            }catch(RuntimeException e){add(l,text("Notifications are temporarily unavailable.",14,MUTED),-2);}
+        }
+        add(l,button("Refresh",()->render("notifications")),-2);space(l,8);add(l,button("Open Control Center",()->render("control")),-2);
     }
     private void recovery(){
         LinearLayout l=scroll();heading(l,"EAGLEGUARD","Recovery");
