@@ -150,6 +150,7 @@ public final class MainActivity extends Activity {
         try{
             colors();getWindow().setStatusBarColor(base);getWindow().setNavigationBarColor(base);
             root=vertical();root.setClipToPadding(false);applyWall();
+            if(Build.VERSION.SDK_INT>=35){root.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars());v.setPadding(bars.left,bars.top,bars.right,bars.bottom);return insets;});}
             body=vertical();root.addView(body,new LinearLayout.LayoutParams(-1,0,1));
             setContentView(root);
             switch(page){
@@ -164,7 +165,7 @@ public final class MainActivity extends Activity {
                 default:page="home";home();
             }
             bottom();applyNav();
-            if(!lite&&prefs.bool("animations",true)){body.setAlpha(.65f);body.animate().alpha(1f).setDuration(160).start();}
+            if(!next.equals("settings")&&!lite&&prefs.bool("animations",true)){body.setAlpha(.65f);body.animate().alpha(1f).setDuration(160).start();}
             if(pageScroll!=null&&previousScroll>0){final ScrollView target=pageScroll;target.post(()->target.scrollTo(0,previousScroll));}
             if(resumed){ui.removeCallbacks(tick);tick.run();}
             prefs.put("startup_pending",false);
@@ -202,6 +203,7 @@ public final class MainActivity extends Activity {
         if(Build.VERSION.SDK_INT>=30){
             root.setOnApplyWindowInsetsListener((v,insets)->{
                 nav.setVisibility(insets.isVisible(WindowInsets.Type.ime())?View.GONE:View.VISIBLE);
+                if(Build.VERSION.SDK_INT>=35){android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.ime());v.setPadding(bars.left,bars.top,bars.right,bars.bottom);}
                 return insets;
             });
             root.requestApplyInsets();
