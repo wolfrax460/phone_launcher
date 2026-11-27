@@ -22,7 +22,7 @@ import java.util.concurrent.*;
 public final class MainActivity extends Activity {
     private static final int WALL_PICK=100, HOME_ROLE=101;
     private static final int WHITE=Color.WHITE, MUTED=0xffb8d4e8;
-    private static final String RELEASES="https://github.com/wolfrax460/phone_launcher/releases";
+    private static final String RELEASES="https://github.com/Jeran24/Releases";
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final Handler ui=new Handler(Looper.getMainLooper());
     private Prefs prefs; private AppCatalog catalog; private WallpaperStore wallpaper;
@@ -121,7 +121,7 @@ public final class MainActivity extends Activity {
     private LinearLayout vertical(){LinearLayout v=new LinearLayout(this);v.setOrientation(LinearLayout.VERTICAL);return v;}
     private LinearLayout horizontal(){LinearLayout v=new LinearLayout(this);v.setOrientation(LinearLayout.HORIZONTAL);v.setGravity(Gravity.CENTER_VERTICAL);return v;}
     private LinearLayout.LayoutParams lp(int w,int h){return new LinearLayout.LayoutParams(w,h);}
-    private TextView text(String s,float size,int color){TextView t=new TextView(this);t.setText(s);t.setTextColor(color);t.setTextSize(size);t.setGravity(Gravity.CENTER_VERTICAL);return t;}
+    private TextView text(String s,float size,int color){TextView t=new TextView(this);t.setText(s);t.setTextColor(color);t.setTextSize(size<16?size+2:size);t.setGravity(Gravity.CENTER_VERTICAL);return t;}
     private TextView title(String s,float size){TextView t=text(s,size,WHITE);t.setTypeface(null,Typeface.BOLD);return t;}
     private TextView button(String s,Runnable r){TextView t=text(s,14,WHITE);t.setGravity(Gravity.CENTER);t.setMinHeight(dp(44));t.setPadding(dp(10),dp(7),dp(10),dp(7));t.setBackground(Glass.panel(base,accent,dp(14),lite));t.setClickable(true);t.setFocusable(true);t.setOnClickListener(v->r.run());return t;}
     private void add(LinearLayout parent,View v,int h){parent.addView(v,lp(-1,h));}
@@ -131,7 +131,7 @@ public final class MainActivity extends Activity {
     private void action(LinearLayout l,String name,String desc,Runnable r){LinearLayout c=card(l);add(c,title(name,15),-2);if(!desc.isEmpty())add(c,text(desc,12,MUTED),-2);c.setMinimumHeight(dp(48));c.setOnClickListener(v->r.run());c.setFocusable(true);c.setContentDescription(name+". "+desc);}
     private void heading(LinearLayout l,String kicker,String label){add(l,text(kicker,11,accent),-2);add(l,title(label,23),-2);space(l,10);}
     private LinearLayout scroll(){ScrollView s=new ScrollView(this);pageScroll=s;s.setFillViewport(false);s.setClipToPadding(false);s.setVerticalScrollBarEnabled(false);body.addView(s,lp(-1,-1));LinearLayout l=vertical();l.setPadding(dp(14),dp(6),dp(14),dp(12));s.addView(l,new ScrollView.LayoutParams(-1,-2));return l;}
-    private void applyWall(){if(root!=null)root.setBackground(new Glass.Wall(base,accent,prefs.bool("custom_wall",false)?wallImage:null,prefs.bool("wall_fit",false),prefs.bool("wall_tint",false)?35:0));}
+    private void applyWall(){if(root!=null)root.setBackground(new Glass.Wall(base,accent,prefs.bool("custom_wall",false)?wallImage:null,prefs.bool("wall_fit",false),prefs.bool("wall_tint",false)?35:0,prefs.num("wall_opacity",100)));}
     private void applyNav(){
         if(prefs==null)return;
         // Only the launcher window uses immersive navigation. Android's bars remain
@@ -165,7 +165,7 @@ public final class MainActivity extends Activity {
                 default:page="home";home();
             }
             bottom();applyNav();
-            if(!next.equals("settings")&&!lite&&prefs.bool("animations",true)){body.setAlpha(.65f);body.animate().alpha(1f).setDuration(160).start();}
+            if(!next.equals("settings")&&!lite&&prefs.bool("animations",true)){body.setAlpha(.65f);body.setTranslationY(dp(6));body.animate().alpha(1f).translationY(0f).setDuration(190).start();}
             if(pageScroll!=null&&previousScroll>0){final ScrollView target=pageScroll;target.post(()->target.scrollTo(0,previousScroll));}
             if(resumed){ui.removeCallbacks(tick);tick.run();}
             prefs.put("startup_pending",false);
@@ -191,7 +191,7 @@ public final class MainActivity extends Activity {
             cell.setFocusable(true);
             if(gesture){
                 if(i==1){View line=new View(this);GradientDrawable bg=new GradientDrawable();bg.setColor(WHITE);bg.setCornerRadius(dp(4));line.setBackground(bg);
-                    FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(dp(48),dp(3),Gravity.CENTER);cell.addView(line,p);}
+                    FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(dp(94),dp(4),Gravity.CENTER);cell.addView(line,p);}
                 if(i==1)cell.setOnClickListener(v->navAction(1));
             }else{
                 TextView symbol=text(new String[]{"‹","⌂","▢"}[i],23,WHITE);symbol.setGravity(Gravity.CENTER);
@@ -226,9 +226,13 @@ public final class MainActivity extends Activity {
             if(navZone>=0&&dy<-dp(26)&&Math.abs(dy)>Math.abs(dx)){final int z=navZone;go=()->navAction(z);}
             else if(page.equals("home")&&SystemClock.uptimeMillis()-downAt<1100){
                 if(Math.abs(dx)>Math.abs(dy)&&dx<-threshold)go=()->render("settings");
-                else if(Math.abs(dx)>Math.abs(dy)&&dx>threshold)go=()->render("health");
+                else if(Math.abs(dx)>Math.abs(dy)&&dx>threshold)go=()->render("control");
                 else if(Math.abs(dy)>Math.abs(dx)&&dy<-threshold)go=()->render("library");
                 else if(Math.abs(dy)>Math.abs(dx)&&dy>threshold)go=()->render("control");
+            }
+            if(go==null&&Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>threshold&&navZone<0){
+                if(page.equals("library")&&dx<0)go=this::launchLast;
+                else if(!page.equals("home")&&dx>0)go=this::onBackPressed;
             }
             if(go!=null){
                 handledSwipe=true;MotionEvent cancel=MotionEvent.obtain(event);cancel.setAction(MotionEvent.ACTION_CANCEL);super.dispatchTouchEvent(cancel);cancel.recycle();go.run();return true;
@@ -298,6 +302,10 @@ public final class MainActivity extends Activity {
         search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int b,int c){renderSearch(s.toString());}public void afterTextChanged(Editable e){}});
     }
     private void renderSearch(String q){if(searchResults==null)return;searchResults.removeAllViews();List<AppCatalog.Entry> match=new ArrayList<>();for(AppCatalog.Entry e:entries)if(e.label.toLowerCase(Locale.ROOT).contains(q.trim().toLowerCase(Locale.ROOT)))match.add(e);if(match.isEmpty())add(searchResults,text(loaded?"No matching apps":"Loading apps…",14,MUTED),dp(50));else grid(searchResults,match,prefs.str("layout","grid").equals("honey")&&q.trim().isEmpty(),false);}
+    private void launchLast(){
+        for(String id:prefs.list("history")){AppCatalog.Entry e=entry(id);if(e!=null){launch(e);return;}}
+        toast("No recent app available");
+    }
     private void launch(AppCatalog.Entry e){
         ComponentName component=ComponentName.unflattenFromString(e.id);if(component==null)return;
         try{
@@ -357,6 +365,13 @@ public final class MainActivity extends Activity {
         });
         toggleSetting(l,"Fit wallpaper","Show full photo instead of center crop","wall_fit",false,this::applyWall);
         toggleSetting(l,"Wallpaper color tint","Subtle accent overlay","wall_tint",false,this::applyWall);
+        LinearLayout opacityCard=card(l);TextView opacityLabel=title("Wallpaper opacity: "+prefs.num("wall_opacity",100)+"%",15);add(opacityCard,opacityLabel,-2);
+        SeekBar opacity=new SeekBar(this);opacity.setMax(100);opacity.setProgress(prefs.num("wall_opacity",100));add(opacityCard,opacity,-2);
+        opacity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            public void onProgressChanged(SeekBar bar,int value,boolean user){if(user){prefs.put("wall_opacity",value);opacityLabel.setText("Wallpaper opacity: "+value+"%");applyWall();}}
+            public void onStartTrackingTouch(SeekBar bar){}
+            public void onStopTrackingTouch(SeekBar bar){}
+        });
         action(l,"Restore theme wallpaper","Uses the selected theme's background",()->{prefs.put("custom_wall",false);render("settings");});
         section(l,"Navigation & apps");
         action(l,"App library layout",prefs.str("layout","grid").equals("grid")?"Grid":"Honeycomb · staggered circular icons",()->{prefs.put("layout",prefs.str("layout","grid").equals("grid")?"honey":"grid");render("settings");});
