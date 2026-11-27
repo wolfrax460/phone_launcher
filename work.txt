@@ -1,0 +1,3 @@
+EaglePort OS v1.1 — Janvier feedback update
+Implemented: persistent native switches, settings scroll restoration, Ocean palette, glass gradients, first-run gesture guide, optional Android security setup, lightweight transitions, larger Home controls, notification settings intent, SDK 35 and Android SDK workflow.
+Limitations: system lock screen and notification shade remain Android-owned; notification mirroring, full personalization parity, watch-style preview and physical 1 GB RAM testing remain outstanding. Build and lint must be verified in Actions. In-place updates require matching signing certificates.
