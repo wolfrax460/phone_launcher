@@ -51,7 +51,7 @@ public final class MainActivity extends Activity {
         // A failed launch should never trap the user in a restart loop.
         if(prefs.bool("startup_pending",false)) prefs.safeMode();
         prefs.put("startup_pending",true);
-        render("home");
+        render(prefs.bool("onboarding_done",false)?"home":"welcome");
         worker.execute(()->{
             Bitmap img=null;
             if(prefs.bool("custom_wall",false)) img=wallpaper.load();
@@ -153,6 +153,7 @@ public final class MainActivity extends Activity {
             body=vertical();root.addView(body,new LinearLayout.LayoutParams(-1,0,1));
             setContentView(root);
             switch(page){
+                case "welcome": welcome();break;
                 case "library": library();break;
                 case "settings": settingsPage();break;
                 case "health": health();break;
@@ -163,6 +164,7 @@ public final class MainActivity extends Activity {
                 default:page="home";home();
             }
             bottom();applyNav();
+            if(!lite&&prefs.bool("animations",true)){body.setAlpha(.65f);body.animate().alpha(1f).setDuration(160).start();}
             if(pageScroll!=null&&previousScroll>0){final ScrollView target=pageScroll;target.post(()->target.scrollTo(0,previousScroll));}
             if(resumed){ui.removeCallbacks(tick);tick.run();}
             prefs.put("startup_pending",false);
@@ -240,7 +242,7 @@ public final class MainActivity extends Activity {
         LinearLayout content=vertical();content.setPadding(dp(13),dp(4),dp(13),dp(5));body.addView(content,lp(-1,-1));
         LinearLayout brand=horizontal();ImageView mark=new ImageView(this);mark.setImageResource(com.eagleport.launcher.R.drawable.eagle);brand.addView(mark,lp(dp(36),dp(36)));
         LinearLayout names=vertical();names.setPadding(dp(7),0,0,0);add(names,title("EaglePort OS",17),-2);add(names,text("Launcher",11,MUTED),-2);brand.addView(names,new LinearLayout.LayoutParams(0,-2,1));
-        brand.addView(button("◉",()->render("control")),lp(dp(44),dp(44)));spaceHorizontal(brand,6);brand.addView(button("⚙",()->render("health")),lp(dp(44),dp(44)));add(content,brand,-2);space(content,7);
+        brand.addView(button("◉",()->render("control")),lp(dp(48),dp(48)));spaceHorizontal(brand,6);brand.addView(button("⚙",()->render("settings")),lp(dp(48),dp(48)));add(content,brand,-2);space(content,7);
         // A non-clickable hint: the app library opens by swipe, never by drawer icon.
         TextView hint=text("⌕  Swipe up to search apps",12,MUTED);hint.setPadding(dp(12),0,dp(12),0);hint.setBackground(Glass.panel(base,accent,dp(16),lite));add(content,hint,dp(36));space(content,8);
         LinearLayout time=card(content);clock=text(DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date()),39,WHITE);add(time,clock,-2);date=text(DateFormat.getDateInstance(DateFormat.FULL).format(new Date()),12,MUTED);add(time,date,-2);
@@ -330,6 +332,16 @@ public final class MainActivity extends Activity {
         sw.setOnCheckedChangeListener((v,on)->{prefs.put(key,on);changed.run();});
         words.setOnClickListener(v->sw.setChecked(!sw.isChecked()));
     }
+    private void welcome(){
+        LinearLayout l=scroll();heading(l,"WELCOME TO EAGLEPORT","Make your phone yours");
+        action(l,"↑  Swipe up","Open the app library and search installed apps",()->render("library"));
+        action(l,"↓  Swipe down","Open EaglePort Control Center from Home",()->render("control"));
+        action(l,"←  Swipe left","Open launcher settings",()->render("settings"));
+        action(l,"→  Swipe right","View device status",()->render("health"));
+        action(l,"Optional screen lock","Set a PIN or password using Android security",()->open(new Intent(Settings.ACTION_SECURITY_SETTINGS)));
+        action(l,"Choose default launcher","Select EaglePort as your Home app",this::chooseHome);
+        add(l,button("Get started",()->{prefs.put("onboarding_done",true);render("home");}),-2);
+    }
     private void settingsPage(){
         LinearLayout l=scroll();heading(l,"MAKE IT YOURS","Launcher Settings");
         section(l,"Appearance");
@@ -350,6 +362,9 @@ public final class MainActivity extends Activity {
         action(l,"Home screen apps","Choose your own app shortcuts",()->{editing=false;render("edit");});
         action(l,"Dock apps","Choose up to four shortcuts",()->{editing=true;render("edit");});
         section(l,"Performance & system");
+        toggleSetting(l,"Screen animations","Lightweight transitions","animations",true,()->{});
+        action(l,"Device security","Manage Android screen lock",()->open(new Intent(Settings.ACTION_SECURITY_SETTINGS)));
+        action(l,"Launcher guide","Review gestures and setup",()->render("welcome"));
         action(l,"Performance mode",prefs.str("performance","balanced").equals("lite")?"Ultra Lite":"Balanced · lightweight native graphics",()->{prefs.put("performance",prefs.str("performance","balanced").equals("lite")?"balanced":"lite");render("settings");});
         toggleSetting(l,"Adaptive memory mode","Reduce graphics when memory is low","adaptive",true,this::colors);
         action(l,"Device Center","Live battery, temperature, RAM and storage",()->render("health"));
@@ -357,7 +372,7 @@ public final class MainActivity extends Activity {
         action(l,"Android keyboard","Use your current Android input method",()->open(new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)));
         action(l,"Check for launcher updates","Open official repository releases · settings are retained on signed in-place updates",()->open(new Intent(Intent.ACTION_VIEW,Uri.parse(RELEASES))));
         action(l,"Recovery","Safe appearance reset and Android fallback",()->render("recovery"));
-        add(l,text("EaglePort OS 0.1.0 · Native Java · no background service",11,MUTED),-2);
+        add(l,text("EaglePort Os v1.1. By Ntirenganya Janvier Coder",11,MUTED),-2);
     }
     private void accentPicker(){
         EditText input=new EditText(this);input.setSingleLine(true);input.setHint("#55D5FF");input.setText(String.format(Locale.US,"#%06X",accent&0xffffff));
@@ -405,12 +420,12 @@ public final class MainActivity extends Activity {
         LinearLayout l=scroll();heading(l,"EAGLEPORT","Control Center");
         add(l,text("Quick controls open Android's own settings where required.",12,MUTED),-2);
         String[] names={"Wi-Fi","Bluetooth","Mobile data","Airplane","Do Not Disturb","Display","Hotspot","Notifications"};
-        String[] actions={Build.VERSION.SDK_INT>=29?Settings.Panel.ACTION_WIFI:Settings.ACTION_WIFI_SETTINGS,Settings.ACTION_BLUETOOTH_SETTINGS,Build.VERSION.SDK_INT>=29?Settings.Panel.ACTION_INTERNET_CONNECTIVITY:Settings.ACTION_WIRELESS_SETTINGS,Settings.ACTION_AIRPLANE_MODE_SETTINGS,Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS,Settings.ACTION_DISPLAY_SETTINGS,Settings.ACTION_WIRELESS_SETTINGS,Settings.ACTION_NOTIFICATION_SETTINGS};
-        for(int i=0;i<names.length;i+=2){LinearLayout row=horizontal();for(int j=i;j<i+2;j++){final String a=actions[j];TextView tile=button(names[j],()->open(new Intent(a)));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(62),1);p.setMargins(dp(3),dp(3),dp(3),dp(3));row.addView(tile,p);}add(l,row,-2);}
+        String[] actions={Build.VERSION.SDK_INT>=29?Settings.Panel.ACTION_WIFI:Settings.ACTION_WIFI_SETTINGS,Settings.ACTION_BLUETOOTH_SETTINGS,Build.VERSION.SDK_INT>=29?Settings.Panel.ACTION_INTERNET_CONNECTIVITY:Settings.ACTION_WIRELESS_SETTINGS,Settings.ACTION_AIRPLANE_MODE_SETTINGS,Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS,Settings.ACTION_DISPLAY_SETTINGS,Settings.ACTION_WIRELESS_SETTINGS,Settings.ACTION_APP_NOTIFICATION_SETTINGS};
+        for(int i=0;i<names.length;i+=2){LinearLayout row=horizontal();for(int j=i;j<i+2;j++){final String a=actions[j];TextView tile=button(names[j],()->open(Settings.ACTION_APP_NOTIFICATION_SETTINGS.equals(a)?new Intent(a).putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName()):new Intent(a)));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(62),1);p.setMargins(dp(3),dp(3),dp(3),dp(3));row.addView(tile,p);}add(l,row,-2);}
         LinearLayout c=card(l);add(c,title("Launcher brightness",14),-2);SeekBar brightness=new SeekBar(this);brightness.setMax(100);float current=getWindow().getAttributes().screenBrightness;brightness.setProgress(current<0?60:(int)(current*100));add(c,brightness,-2);brightness.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean user){if(user){WindowManager.LayoutParams a=getWindow().getAttributes();a.screenBrightness=Math.max(.08f,p/100f);getWindow().setAttributes(a);}}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}});
         AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
         if(audio!=null){LinearLayout vol=card(l);add(vol,title("Media volume",14),-2);SeekBar slider=new SeekBar(this);slider.setMax(audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));slider.setProgress(audio.getStreamVolume(AudioManager.STREAM_MUSIC));add(vol,slider,-2);slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int p,boolean user){if(user)try{audio.setStreamVolume(AudioManager.STREAM_MUSIC,p,0);}catch(SecurityException ex){toast("Volume change not permitted");}}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}});}
-        action(l,"System notifications","Android controls the real notification shade",()->open(new Intent(Settings.ACTION_NOTIFICATION_SETTINGS)));
+        action(l,"System notifications","Android controls the real notification shade",()->open(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName())));
     }
     private void recents(){
         LinearLayout l=scroll();heading(l,"RECENT LAUNCHES","Recent Apps");
